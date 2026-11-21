@@ -126,11 +126,12 @@ final class MicrophoneMonitor {
         guard AudioObjectGetPropertyDataSize(id, &property, 0, nil, &bytes) == noErr else { return nil }
         let stride = MemoryLayout<AudioObjectID>.stride
         guard bytes > 0 else { return [] }
+        guard Int(bytes).isMultiple(of: stride) else { return nil }
         var values = [AudioObjectID](repeating: 0, count: Int(bytes) / stride)
         let status = values.withUnsafeMutableBytes { buffer in
             AudioObjectGetPropertyData(id, &property, 0, nil, &bytes, buffer.baseAddress!)
         }
-        guard status == noErr else { return nil }
+        guard status == noErr, Int(bytes).isMultiple(of: stride) else { return nil }
         return Array(values.prefix(Int(bytes) / stride))
     }
 }

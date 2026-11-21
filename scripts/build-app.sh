@@ -1,5 +1,7 @@
-#!/bin/zsh
+#!/bin/zsh -f
 set -eu
+setopt PIPE_FAIL
+export GIT_NO_REPLACE_OBJECTS=1
 setopt POSIX_TRAPS  # Run EXIT cleanup on failures inside replace_app as well.
 cd "${0:A:h:h}"
 
@@ -39,6 +41,12 @@ replace_app() {
     replacement="$2"
     previous_app="${staged_app:h}/previous.app"
     if [[ -e "$replacement" || -L "$replacement" ]]; then
+        local bundle_id
+        bundle_id=$(/usr/bin/plutil -extract CFBundleIdentifier raw "$staged_app/Contents/Info.plist")
+        if [[ -L "$replacement" || "$(/usr/bin/plutil -extract CFBundleIdentifier raw "$replacement/Contents/Info.plist")" != "$bundle_id" ]]; then
+            echo "Refusing to replace an unrelated app or symbolic link at $replacement" >&2
+            return 1
+        fi
         mv "$replacement" "$previous_app"
     fi
     mv "$staged_app" "$replacement"
@@ -51,13 +59,18 @@ touch build/.build-app.lock
 zmodload zsh/system
 zsystem flock build/.build-app.lock
 
+revision=$(/usr/bin/python3 -I scripts/publish-build.py jsb188/shh)
+
 build_stage="$(mktemp -d "$PWD/build/.Shh-build.XXXXXX")"
+source_dir="$build_stage/source"
+mkdir "$source_dir"
+/usr/bin/git archive "$revision" | /usr/bin/tar -x -C "$source_dir"
 staged_app="$build_stage/Shh.app"
 mkdir -p "$staged_app/Contents/MacOS" "$staged_app/Contents/Resources"
 xcrun swiftc -O -swift-version 5 -warnings-as-errors -target "$(uname -m)-apple-macos14.2" \
-    -module-cache-path "$PWD/build/ModuleCache" Sources/*.swift -o "$staged_app/Contents/MacOS/Shh"
-cp Resources/Info.plist "$staged_app/Contents/Info.plist"
-cp Resources/AppIcon.icns "$staged_app/Contents/Resources/AppIcon.icns"
+    -module-cache-path "$PWD/build/ModuleCache" "$source_dir"/Sources/*.swift -o "$staged_app/Contents/MacOS/Shh"
+cp "$source_dir/Resources/Info.plist" "$staged_app/Contents/Info.plist"
+cp "$source_dir/Resources/AppIcon.icns" "$staged_app/Contents/Resources/AppIcon.icns"
 codesign --force --sign - "$staged_app"
 codesign --verify --strict "$staged_app"
 replace_app "$staged_app" "$app"

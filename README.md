@@ -4,6 +4,8 @@ Shh is a menu bar app for macOS 14.2 or later. It watches Core Audio microphone 
 
 ## Build and open Shh
 
+Each build creates a Git commit on the current branch, including on a clean checkout, and pushes it to the project’s GitHub origin before compiling that revision. A rejected push stops the build. The script stages tracked changes and new project files and checks for common credentials. Review pending changes before building.
+
 With Xcode or the Command Line Tools installed, run these commands from the project folder.
 
 ```sh

@@ -100,11 +100,17 @@ final class AudioSilencer {
         var size: UInt32 = 0
         try check(AudioObjectGetPropertyDataSize(system, &address, 0, nil, &size), "list audio clients")
         let stride = MemoryLayout<AudioObjectID>.stride
+        guard Int(size).isMultiple(of: stride) else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(kAudioHardwareBadPropertySizeError))
+        }
         var objects = [AudioObjectID](repeating: 0, count: Int(size) / stride)
         guard !objects.isEmpty else { return [] }
         try objects.withUnsafeMutableBytes {
             try check(AudioObjectGetPropertyData(system, &address, 0, nil, &size, $0.baseAddress!),
                       "read audio clients")
+        }
+        guard Int(size).isMultiple(of: stride) else {
+            throw NSError(domain: NSOSStatusErrorDomain, code: Int(kAudioHardwareBadPropertySizeError))
         }
         return Set(objects.prefix(Int(size) / stride).filter { object in
             guard let rawPID = uint32(object, kAudioProcessPropertyPID),
