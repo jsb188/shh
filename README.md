@@ -34,6 +34,12 @@ Set `SHH_APPLICATIONS_DIR` to choose another install folder. Set `SHH_REFRESH_DE
 
 Shh periodically checks for new playback during microphone use. Brief sounds may finish before the next check. App exclusions apply to output that Core Audio or a nested helper bundle can attribute to that app. Some protected content or device-specific output routes may bypass audio taps. Use **Playback Issues** in the menu to inspect reported errors. Turning off monitoring or quitting normally releases audio controls.
 
+## Codex push-to-talk
+
+With **Pause While Holding Right Option** enabled (the default), hold Right Option in any app to trigger playback suppression. Shh checks the modifier every 40 ms. Releasing the key restores playback once microphone activity also ends. Player commands and audio tap setup can take additional time.
+
+This setting responds to every Right Option hold, including when Codex is closed. If your Codex shortcut uses another key or you use Right Option for typing, turn the setting off in the Shh menu to rely on microphone activity alone.
+
 ## Try it with Dictation
 
 1. Start a YouTube video in Chrome and leave a second video paused.

@@ -5,18 +5,36 @@ import UniformTypeIdentifiers
     private let defaults = UserDefaults.standard
     private var exclusions: [String: String] = [:]
     private var enabled = true
-    private var active = false
+    private var microphoneActive = false
+    private var shortcutHeld = false
+    private var watchShortcut = true
+    private var active: Bool { enabled && (microphoneActive || shortcutHeld) }
     private var shuttingDown = false
     private var timer: Timer?
     private let playback = PlaybackCoordinator()
     private var issues: [String: String] = [:]
     private lazy var microphone = MicrophoneMonitor { [weak self] active in
-        guard let self, self.enabled, !self.shuttingDown else { return }
-        self.active = active
-        self.updateTimer()
-        self.sync()
-        self.updateIcon()
+        guard let self else { return }
+        let wasActive = self.active
+        self.microphoneActive = active
+        self.activityChanged(from: wasActive)
     }
+    private lazy var dictationHold = DictationHoldMonitor { [weak self] held in
+        guard let self else { return }
+        let wasActive = self.active
+        self.shortcutHeld = held
+        self.activityChanged(from: wasActive)
+    }
+
+    private func activityChanged(from wasActive: Bool) {
+        guard !shuttingDown else { return }
+        if wasActive != active {
+            updateTimer()
+            sync()
+        }
+        updateIcon()
+    }
+
     private let status = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let menu = NSMenu()
 
@@ -30,7 +48,11 @@ import UniformTypeIdentifiers
         menu.delegate = self
         status.menu = menu
         updateIcon()
-        if enabled { microphone.start() }
+        watchShortcut = defaults.object(forKey: "watchRightOption") as? Bool ?? true
+        if enabled {
+            if watchShortcut { dictationHold.start() }
+            microphone.start()
+        }
     }
 
     private func updateTimer() {
@@ -51,6 +73,7 @@ import UniformTypeIdentifiers
 
     private var statusText: String {
         if !enabled { return "Monitoring is off" }
+        if shortcutHeld { return "Dictation shortcut held" }
         return active ? "Microphone in use" : "Waiting for microphone"
     }
 
@@ -73,6 +96,9 @@ import UniformTypeIdentifiers
         menu.addItem(.separator())
         let toggle = item("Monitor Microphone", #selector(toggleMonitoring), in: menu)
         toggle.state = enabled ? .on : .off
+
+        let shortcut = item("Pause While Holding Right Option", #selector(toggleShortcut), in: menu)
+        shortcut.state = watchShortcut ? .on : .off
 
         let excluded = NSMenu()
         let submenu = item("Excluded Apps", in: menu)
@@ -101,13 +127,23 @@ import UniformTypeIdentifiers
     @objc private func toggleMonitoring() {
         enabled.toggle()
         defaults.set(enabled, forKey: "enabled")
-        if enabled { microphone.start() } else {
+        if enabled {
+            if watchShortcut { dictationHold.start() }
+            microphone.start()
+        } else {
+            dictationHold.stop()
             microphone.stop()
-            active = false
+            microphoneActive = false
             updateTimer()
         }
         sync()
         updateIcon()
+    }
+
+    @objc private func toggleShortcut() {
+        watchShortcut.toggle()
+        defaults.set(watchShortcut, forKey: "watchRightOption")
+        if enabled && watchShortcut { dictationHold.start() } else { dictationHold.stop() }
     }
 
     @objc private func addExclusion() {
@@ -167,6 +203,7 @@ import UniformTypeIdentifiers
             shuttingDown = true
             timer?.invalidate()
             microphone.stop()
+            dictationHold.stop()
             playback.shutDown { DispatchQueue.main.async { sender.reply(toApplicationShouldTerminate: true) } }
         }
         return .terminateLater

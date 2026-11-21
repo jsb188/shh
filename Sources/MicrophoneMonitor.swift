@@ -18,10 +18,10 @@ final class MicrophoneMonitor {
         guard recoveryTimer == nil else { return }
         // Notifications drive normal operation. The timer also recovers when the
         // audio service restarts or a client exits while a listener is being added.
-        let timer = Timer(timeInterval: 4, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 0.5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.refresh() }
         }
-        timer.tolerance = 0.5
+        timer.tolerance = 0.05
         recoveryTimer = timer
         RunLoop.main.add(timer, forMode: .common)
         refresh()
